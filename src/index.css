@@ -1,3 +1,17 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+
+/* Dark-friendly form controls */
+@layer base {
+  input, select, textarea {
+    @apply bg-white text-gray-900 placeholder-gray-500 border-gray-300;
+  }
+  .dark input, .dark select, .dark textarea {
+    @apply bg-gray-800 text-gray-100 placeholder-gray-400 border-gray-600;
+  }
+  .dark input:focus, .dark select:focus, .dark textarea:focus {
+    @apply outline-none ring-1 ring-blue-500 border-blue-500;
+  }
+}
