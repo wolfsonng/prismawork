@@ -1,5 +1,6 @@
 import { performance } from 'perf_hooks';
 import fs from 'fs';
+import type { ClientConfig } from 'pg';
 import { readDotEnv } from './envFile';
 
 export async function tryConnect(url: string) {
@@ -30,20 +31,22 @@ export async function tryConnect(url: string) {
   const env = readDotEnv();
   const caPath = env.PG_SSL_CA_PATH || process.env.PG_SSL_CA_PATH;
   const verify = (env.PG_SSL_VERIFY || process.env.PG_SSL_VERIFY) === 'true';
-  const ssl = cleanUrl.includes('sslmode=require') || cleanUrl.includes('sslmode=verify-full')
-    ? (verify && caPath && fs.existsSync(caPath)
+  const opts: ClientConfig = { connectionString: cleanUrl };
+  if (cleanUrl.includes('sslmode=require') || cleanUrl.includes('sslmode=verify-full')) {
+    opts.ssl = verify && caPath && fs.existsSync(caPath)
       ? { ca: fs.readFileSync(caPath, 'utf8'), rejectUnauthorized: true }
-      : { rejectUnauthorized: false })
-    : undefined;
-  const client = new Client({ connectionString: cleanUrl, ssl });
+      : { rejectUnauthorized: false };
+  }
+  const client = new Client(opts);
   try {
     await client.connect();
     const res = await client.query('select version();');
     await client.end();
     return { ok: true as const, latencyMs: Math.round(performance.now() - start), serverVersion: res?.rows?.[0]?.version || '' };
-  } catch (err: any) {
-    try { await client.end(); } catch {}
-    return { ok: false as const, latencyMs: Math.round(performance.now() - start), error: err?.message || String(err) };
+  } catch (err: unknown) {
+    try { await client.end(); } catch { /* empty */ }
+    const message = (err as { message?: string })?.message || String(err);
+    return { ok: false as const, latencyMs: Math.round(performance.now() - start), error: message };
   }
 }
 
@@ -77,10 +80,11 @@ export async function listExtensions(url: string) {
     await client.connect();
     const res = await client.query('select extname from pg_extension order by extname;');
     await client.end();
-    const extensions = res.rows.map((r: any) => String(r.extname));
+    const extensions = res.rows.map((r: { extname: unknown }) => String(r.extname));
     return { ok: true as const, extensions };
-  } catch (err: any) {
-    try { await client.end(); } catch {}
-    return { ok: false as const, error: err?.message || String(err) };
+  } catch (err: unknown) {
+    try { await client.end(); } catch { /* empty */ }
+    const message = (err as { message?: string })?.message || String(err);
+    return { ok: false as const, error: message };
   }
 }
