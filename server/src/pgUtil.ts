@@ -7,15 +7,35 @@ export async function tryConnect(url: string) {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   const { Client } = await import('pg');
+
+  // Supabase URLs include extra query params not understood by postgres. Sanitize them.
+  let cleanUrl = url;
+  try {
+    const u = new URL(url);
+    const qp = u.searchParams;
+    const schema = qp.get('schema');
+    qp.delete('pgbouncer');
+    qp.delete('connection_limit');
+    qp.delete('schema');
+    if (schema) {
+      const opt = qp.get('options');
+      const searchPath = `-c search_path=${schema}`;
+      qp.set('options', opt ? `${opt} ${searchPath}` : searchPath);
+    }
+    cleanUrl = u.toString();
+  } catch {
+    // ignore parse errors and fall back to original url
+  }
+
   const env = readDotEnv();
   const caPath = env.PG_SSL_CA_PATH || process.env.PG_SSL_CA_PATH;
   const verify = (env.PG_SSL_VERIFY || process.env.PG_SSL_VERIFY) === 'true';
-  const ssl = url.includes('sslmode=require') || url.includes('sslmode=verify-full')
+  const ssl = cleanUrl.includes('sslmode=require') || cleanUrl.includes('sslmode=verify-full')
     ? (verify && caPath && fs.existsSync(caPath)
       ? { ca: fs.readFileSync(caPath, 'utf8'), rejectUnauthorized: true }
       : { rejectUnauthorized: false })
     : undefined;
-  const client = new Client({ connectionString: url, ssl });
+  const client = new Client({ connectionString: cleanUrl, ssl });
   try {
     await client.connect();
     const res = await client.query('select version();');
