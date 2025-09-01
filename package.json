@@ -1,7 +1,19 @@
 {
-  "name": "vite-react-typescript-starter",
+  "name": "prismawork",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "A beautiful, UI-first tool for managing Prisma projects with multi-environment support",
+  "keywords": ["prisma", "database", "studio", "ui", "typescript", "react"],
+  "author": "PrismaWork Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wolfsonng/prismawork.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wolfsonng/prismawork/issues"
+  },
+  "homepage": "https://github.com/wolfsonng/prismawork#readme",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k \"npm run server:dev\" \"npm run client:dev\"",
