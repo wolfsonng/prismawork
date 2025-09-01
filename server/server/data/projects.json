@@ -1,0 +1,10 @@
+{
+  "currentRoot": "/Users/bnguyen/Desktop/Github/zauberstack/packages/api/",
+  "items": {
+    "/Users/bnguyen/Desktop/Github/zauberstack/packages/api/": {
+      "name": "Zauberstack",
+      "studioPort": 5555,
+      "studioUse": "local"
+    }
+  }
+}
