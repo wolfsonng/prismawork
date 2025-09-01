@@ -14,16 +14,30 @@ export default function RootBanner({ onChange }: { onChange?: () => void }) {
   return (
     <div className="bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-900 px-6 py-2 text-sm flex items-center gap-3 flex-wrap">
       <span className="text-blue-900 dark:text-blue-200">Project:</span>
-      <code className="text-blue-900 dark:text-blue-200 truncate max-w-[40ch]">{items[root]?.name || root}</code>
+      <code className="text-blue-900 dark:text-blue-200 truncate max-w-[40ch]">
+        {items[root]?.id ? `#${items[root].id} - ` : ''}{items[root]?.name || root}
+      </code>
       {names.length > 1 && (
         <select className="border rounded px-2 py-0.5" onChange={async (e)=>{
           const sel = e.target.value;
           if (!sel) return;
-          try { await fetch(`${API_BASE}/api/projects/select`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ root: sel }) }); window.location.reload(); } catch {}
+          const projectId = parseInt(sel, 10);
+          if (!isNaN(projectId)) {
+            try {
+              await fetch(`${API_BASE}/api/projects/switch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: projectId })
+              });
+              window.location.reload();
+            } catch {}
+          }
         }} value="">
           <option value="">Switch…</option>
           {names.filter(r=>r!==root).map((r)=> (
-            <option key={r} value={r}>{items[r]?.name || r}</option>
+            <option key={r} value={items[r]?.id || ''}>
+              {items[r]?.id ? `#${items[r].id} - ` : ''}{items[r]?.name || r}
+            </option>
           ))}
         </select>
       )}

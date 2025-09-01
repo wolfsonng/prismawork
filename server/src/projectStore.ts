@@ -2,9 +2,11 @@ import fs from 'fs';
 import path from 'path';
 
 type ProjectData = {
+  id?: number;
   name?: string;
   studioPort?: number;
   studioUse?: 'local' | 'direct' | 'pooled';
+  profiles?: any; // Store environment profiles per project
 };
 
 type Store = {
@@ -58,5 +60,48 @@ export function getCurrent(): { root?: string; data?: ProjectData } {
   const store = readStore();
   const root = store.currentRoot;
   return { root, data: root ? store.items[root] : undefined };
+}
+
+export function getNextProjectId(): number {
+  const store = readStore();
+  const existingIds = Object.values(store.items)
+    .map(p => p.id)
+    .filter(id => typeof id === 'number') as number[];
+
+  if (existingIds.length === 0) return 1;
+  return Math.max(...existingIds) + 1;
+}
+
+export function getProjectById(id: number): { root?: string; data?: ProjectData } {
+  const store = readStore();
+  for (const [root, data] of Object.entries(store.items)) {
+    if (data.id === id) {
+      return { root, data };
+    }
+  }
+  return {};
+}
+
+export function setCurrentProjectById(id: number): boolean {
+  const project = getProjectById(id);
+  if (project.root) {
+    setCurrentRoot(project.root);
+    return true;
+  }
+  return false;
+}
+
+export function getDefaultProject(): { root?: string; data?: ProjectData } {
+  // Try to load project with ID 1, fallback to first available project
+  const project1 = getProjectById(1);
+  if (project1.root) return project1;
+
+  const store = readStore();
+  const firstRoot = Object.keys(store.items)[0];
+  if (firstRoot) {
+    return { root: firstRoot, data: store.items[firstRoot] };
+  }
+
+  return {};
 }
 

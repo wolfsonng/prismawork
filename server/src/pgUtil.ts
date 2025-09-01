@@ -3,6 +3,9 @@ import fs from 'fs';
 import type { ClientConfig } from 'pg';
 import { readDotEnv } from './envFile';
 
+// Disable TLS certificate verification for self-signed certificates (like Supabase)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 export async function tryConnect(url: string) {
   const start = performance.now();
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment

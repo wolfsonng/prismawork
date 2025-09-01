@@ -8,7 +8,7 @@ import { spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { readDotEnv, writeDotEnv } from './envFile';
-import { readStore, writeStore, getProject, setProject, setCurrentRoot, getCurrent } from './projectStore';
+import { readStore, writeStore, getProject, setProject, setCurrentRoot, getCurrent, getNextProjectId, getProjectById, setCurrentProjectById, getDefaultProject } from './projectStore';
 
 // moved tryConnect to pgUtil
 
@@ -38,6 +38,15 @@ function getProjectEnvState(): EnvState | null {
   } catch { return null; }
 }
 
+function saveProjectEnvState(state: EnvState): boolean {
+  try {
+    const cur = getCurrent();
+    if (!cur.root) return false;
+    setProject(cur.root, { profiles: state });
+    return true;
+  } catch { return false; }
+}
+
 function getRuntimeEnv() {
   const state = getProjectEnvState() || loadEnvState();
   return resolveRuntimeEnv(state);
@@ -54,10 +63,10 @@ app.post('/api/env/save-profile', (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const cur = getCurrent();
-  if (cur.root) {
-    setProject(cur.root, { profiles: parsed.data });
-  } else {
+
+  // Try to save to current project first, fallback to global .env
+  const success = saveProjectEnvState(parsed.data);
+  if (!success) {
     saveEnvState(parsed.data);
   }
   res.json({ ok: true });
@@ -181,9 +190,170 @@ app.post('/api/projects/select', express.json(), (req, res) => {
 });
 
 app.post('/api/projects/update', express.json(), (req, res) => {
-  const { root, data } = (req.body || {}) as { root?: string; data?: any };
+  const { root, data, id, name, path } = (req.body || {}) as {
+    root?: string;
+    data?: any;
+    id?: number;
+    name?: string;
+    path?: string;
+  };
+
+  // Handle project update by ID (new format) - check this first
+  if (id !== undefined && (name !== undefined || path !== undefined)) {
+    const project = getProjectById(id);
+    if (!project.root) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const store = readStore();
+    const currentData = store.items[project.root];
+
+    // If path is changing, we need to move the project
+    if (path && path !== project.root) {
+      // Check if new path already exists
+      if (store.items[path]) {
+        return res.status(400).json({ error: 'Project with this path already exists' });
+      }
+
+      // Move project to new path
+      store.items[path] = {
+        ...currentData,
+        name: name !== undefined ? name : currentData.name,
+        id: currentData.id
+      };
+      delete store.items[project.root];
+
+      // Update current root if this was the current project
+      if (store.currentRoot === project.root) {
+        store.currentRoot = path;
+      }
+    } else {
+      // Just update the name
+      store.items[project.root] = {
+        ...currentData,
+        name: name !== undefined ? name : currentData.name
+      };
+    }
+
+    writeStore(store);
+    res.json({ ok: true });
+    return;
+  }
+
+  // Handle legacy format
   if (!root || !data) return res.status(400).json({ error: 'root and data required' });
   setProject(root, data);
+  res.json({ ok: true });
+});
+
+// ---- New project management endpoints ----
+app.get('/api/projects/default', (_req, res) => {
+  const defaultProject = getDefaultProject();
+  res.json(defaultProject);
+});
+
+app.post('/api/projects/create', express.json(), (req, res) => {
+  const { root, name } = (req.body || {}) as { root?: string; name?: string };
+  if (!root) return res.status(400).json({ error: 'root required' });
+
+  // Check if project with this root already exists
+  const store = readStore();
+  if (store.items[root]) {
+    return res.status(400).json({ error: 'Project with this directory already exists' });
+  }
+
+  const nextId = getNextProjectId();
+  const projectData = {
+    id: nextId,
+    name: name || `Project ${nextId}`,
+    studioPort: 5555,
+    studioUse: 'local' as const,
+    profiles: {
+      ACTIVE_PROFILE: 'local' as const,
+      profiles: {
+        local: {
+          LOCAL_DATABASE_URL: '',
+          SHADOW_DATABASE_URL: '',
+          DATABASE_URL: '',
+          DIRECT_URL: ''
+        },
+        staging: {
+          LOCAL_DATABASE_URL: '',
+          SHADOW_DATABASE_URL: '',
+          DATABASE_URL: '',
+          DIRECT_URL: ''
+        },
+        prod: {
+          LOCAL_DATABASE_URL: '',
+          SHADOW_DATABASE_URL: '',
+          DATABASE_URL: '',
+          DIRECT_URL: ''
+        }
+      }
+    }
+  };
+
+  setProject(root, projectData);
+  setCurrentRoot(root);
+
+  res.json({ ok: true, id: nextId, project: projectData });
+});
+
+app.post('/api/projects/switch', express.json(), (req, res) => {
+  const { id } = (req.body || {}) as { id?: number };
+  if (typeof id !== 'number') return res.status(400).json({ error: 'id required' });
+
+  const success = setCurrentProjectById(id);
+  if (success) {
+    res.json({ ok: true, id });
+  } else {
+    res.status(404).json({ error: 'Project not found' });
+  }
+});
+
+app.get('/api/projects/by-id/:id', (req, res) => {
+  const { id } = req.params as { id: string };
+  const projectId = parseInt(id, 10);
+  if (isNaN(projectId)) return res.status(400).json({ error: 'Invalid ID' });
+
+  const project = getProjectById(projectId);
+  if (project.root) {
+    res.json(project);
+  } else {
+    res.status(404).json({ error: 'Project not found' });
+  }
+});
+
+app.post('/api/projects/delete', express.json(), (req, res) => {
+  const { id } = (req.body || {}) as { id?: number };
+  if (typeof id !== 'number') return res.status(400).json({ error: 'id required' });
+
+  const store = readStore();
+  const projectToDelete = getProjectById(id);
+
+  if (!projectToDelete.root) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+
+  // Don't allow deleting the last project
+  if (Object.keys(store.items).length <= 1) {
+    return res.status(400).json({ error: 'Cannot delete the last project' });
+  }
+
+  // Remove the project
+  delete store.items[projectToDelete.root];
+
+  // If this was the current project, switch to another one
+  if (store.currentRoot === projectToDelete.root) {
+    const remainingProjects = Object.keys(store.items);
+    if (remainingProjects.length > 0) {
+      store.currentRoot = remainingProjects[0];
+    } else {
+      store.currentRoot = undefined;
+    }
+  }
+
+  writeStore(store);
   res.json({ ok: true });
 });
 

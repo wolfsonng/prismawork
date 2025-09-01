@@ -1,0 +1,34 @@
+{
+  "currentRoot": "/path/to/your/project/",
+  "items": {
+    "/path/to/your/project/": {
+      "id": 1,
+      "name": "My Project",
+      "studioPort": 5555,
+      "studioUse": "local",
+      "profiles": {
+        "ACTIVE_PROFILE": "local",
+        "profiles": {
+          "local": {
+            "LOCAL_DATABASE_URL": "postgresql://postgres:password@localhost:5432/mydb_local",
+            "SHADOW_DATABASE_URL": "postgresql://postgres:password@localhost:5432/mydb_shadow",
+            "DATABASE_URL": "postgresql://postgres.project_ref:password@aws-0-us-east-2.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&sslmode=require&schema=public",
+            "DIRECT_URL": "postgresql://postgres:password@db.project_ref.supabase.co:5432/postgres?sslmode=require&schema=public"
+          },
+          "staging": {
+            "LOCAL_DATABASE_URL": "",
+            "SHADOW_DATABASE_URL": "",
+            "DATABASE_URL": "",
+            "DIRECT_URL": ""
+          },
+          "prod": {
+            "LOCAL_DATABASE_URL": "",
+            "SHADOW_DATABASE_URL": "",
+            "DATABASE_URL": "",
+            "DIRECT_URL": ""
+          }
+        }
+      }
+    }
+  }
+}
