@@ -23,7 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
-server/cert/
-server/certs/
+server/server/cert/
+server/server/certs/
 tmp/
-server/data/
+server/server/data/projects.json
